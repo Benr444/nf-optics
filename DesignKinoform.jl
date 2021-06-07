@@ -1,9 +1,16 @@
-include("ROptics.jl")
-using Revise
-using Main.ROptics
-using Images, FileIO, Plots, FFTW
+# usage
+# from cmd: 
+# -> "julia" 
+# -> "include("DesignKinoform.jl")"
+# -> re-run the previous after every edit.
+# for best performance, do not close julia
 
-function design_optic()
+module DesignKinoform
+
+using Revise
+using Images, FileIO, Plots, FFTW
+Revise.includet("ROptics.jl")
+using Main.ROptics
 
 my_λ = 1.0 # units:
 my_scale = 1.0 # units:
@@ -34,4 +41,4 @@ for i in 1:total_cycles
 		layout=4, plot_title="phase"), "out/three-phases$i.png")
 end
 
-end # end design_optic
+end # end module
