@@ -19,7 +19,7 @@ g, gˈ, G, Gˈ = Dict(), Dict(), Dict(), Dict() # prime marker is \verts
 G[0] = OpticField("in/three.png")
 g[0] = F⁻¹(G[0])
 png(g[0], "out/three-g0.png")
-total_cycles = 3
+total_cycles = 6
 for i in 1:total_cycles
 	gˈ[i] = set_phase(g[i - 1], 0)
 	G[i] = F(gˈ[i])
