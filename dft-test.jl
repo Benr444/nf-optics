@@ -3,6 +3,8 @@ using Images, FileIO, Plots, FFTW
 Revise.includet("ROptics.jl")
 using Main.ROptics
 
+# see page X of lyon's "understanding digital signal processing"
+
 Plots.default(overwrite_figure = false) # causes display() to make a new window
 
 # the signal begins at x = 0 and ends at x = 10
@@ -15,31 +17,36 @@ function c_signal(x::Real) # x is a length in meters
 end
 
 # signal as a collection of points
+kᵢ = 500 # signal points spatial frequency
 Nᵢ = 500 # number of samples for the signal data
-kᵢ = 500
-xᵢ = 1 / kᵢ
+xᵢ = 1 / kᵢ # signal points spatial wavelength
 signal_points = [n * xᵢ for n in 0:(Nᵢ - 1)]
 signal_data = [c_signal(x) for x in signal_points]
 
-signal_plot = plot(0:(Nᵢ - 1), signal_data, title="signal", label="Nᵢ = $Nᵢ, kᵢ = $kᵢ")
+# note that this plots unitless-index vs value
+# unitless index | 0:(Nᵢ - 1)
+signal_plot = plot(signal_points, signal_data, title="signal", label="Nᵢ = $Nᵢ, kᵢ = $kᵢ")
 #display(signal_plot)
 
-Nₛ = 8 # number of samples
 kₛ = 8 # sampling (spatial) frequency. samples per meter
+Nₛ = 8 # number of samples
 xₛ = 1 / kₛ # sampling period. meters
 sample_points = [n * xₛ for n in 0:(Nₛ - 1)]
 sample_data = [c_signal(x) for x in sample_points]
-
-sample_plot = scatter(0:(Nₛ - 1), sample_data, title="sample", label="Nₛ = $Nₛ, kₛ = $kₛ")
+# unitless index | 0:(Nₛ - 1)
+sample_plot = scatter(sample_points, sample_data, title="sample", label="Nₛ = $Nₛ, kₛ = $kₛ")
 
 # ℱ.signal
 ℱ_signal_data = fft(signal_data)
-ℱ_signal_plot = plot(0:(Nᵢ - 1), real.(ℱ_signal_data), title="ℱ.signal", label="real")
+# unitless index | 0:(Nᵢ - 1)
+freq_signal_points = [(kᵢ / Nᵢ) * n for n in 0:(Nᵢ - 1)]
+ℱ_signal_plot = plot(freq_signal_points, real.(ℱ_signal_data), title="ℱ.signal", label="real")
 
 # ℱ.sample
 ℱ_sample_data = fft(sample_data)
+freq_sample_points = [(kₛ / Nₛ) * n for n in 0:(Nₛ - 1)]
 ℱ_sample_plot = scatter(
-	0:(Nₛ - 1), 
+	freq_sample_points,
 	hcat(
 		real.(ℱ_sample_data),
 		#imag.(ℱ_sample_data),
