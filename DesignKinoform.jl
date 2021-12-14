@@ -33,6 +33,12 @@ for i in 1:total_cycles
 		heatmap(abs.(Gˈ[i]), title="|Gˈ|"),
 		heatmap(abs.(g[i]), title="|g|"),
 		layout=4, plot_title="absolute values"), "out/three-moduli$i.png")
+
+	png(heatmap(abs.(gˈ[i]), title="|gˈ|"), "out/three-moduli$i-g'.png")
+	png(heatmap(abs.(G[i]), title="|G|"), "out/three-moduli$i-G.png")
+	png(heatmap(abs.(Gˈ[i]), title="|Gˈ|"), "out/three-moduli$i-G'.png")
+	png(heatmap(abs.(g[i]), title="|g|"), "out/three-moduli$i-g.png")
+	
 	png(heatmap(
 		heatmap(angle.(gˈ[i]), title="Φ(gˈ)"),
 		heatmap(angle.(G[i]), title="Φ(G)"),

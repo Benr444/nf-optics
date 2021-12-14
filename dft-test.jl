@@ -17,7 +17,7 @@ end
 
 # signal as a collection of points
 fᵢ = 500 # signal points frequency, Hz
-Nᵢ = 500 # number of samples for the signal data
+Nᵢ = 1500 # number of samples for the signal data
 tᵢ = 1 / fᵢ # signal points period, seconds
 signal_points = [n * tᵢ for n in 0:(Nᵢ - 1)]
 signal_data = [c_signal(x) for x in signal_points]
@@ -28,7 +28,7 @@ signal_plot = plot(signal_points, signal_data, title="signal", label="Nᵢ = $N�
 #display(signal_plot)
 
 fₛ = 8 # sampling frequency. samples per meter
-Nₛ = 8 # number of samples
+Nₛ = 24 # number of samples
 tₛ = 1 / fₛ # sampling period, seconds
 sample_points = [n * tₛ for n in 0:(Nₛ - 1)]
 sample_data = [c_signal(x) for x in sample_points]
