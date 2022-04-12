@@ -10,20 +10,22 @@ end
 export make_field
 
 F(x::Matrix{Complex{Float64}}) = fft(x) # forward-propagate
-F(x::Matrix{<: Real}) = F(Complex{Float64}.(x))
+#F(x::Matrix{<: Real}) = F(Complex{Float64}.(x))
 export F
 F⁻¹(x::Matrix{Complex{Float64}}) = ifft(x) # reverse-propagate
-F⁻¹(x::Matrix{<: Real}) = F⁻¹(Complex{Float64}.(x))
+#F⁻¹(x::Matrix{<: Real}) = F⁻¹(Complex{Float64}.(x))
 export F⁻¹
 
 Plots.png(x::Matrix{Complex{Float64}}, filepath) = png(plot(Gray24.(fit_my_range(real(x)))), filepath)
 # ^ method extension to plot
 #export png
 
-set_phase(z, Φ) = complex(abs(z) * cos(Φ), abs(z) * sin(Φ))
+#set_phase(z, Φ) = complex(abs(z) * cos(Φ), abs(z) * sin(Φ))
+set_phase(z, Φ) = abs(z) * exp(1im * Φ)
 set_phase(x::Matrix{Complex{Float64}}, Φs) = broadcast(set_phase, x, Φs)
 export set_phase
-set_modulus(z, l) = complex(abs(l) * cos(angle(z)), abs(l) * sin(angle(z)))
+#set_modulus(z, l) = complex(abs(l) * cos(angle(z)), abs(l) * sin(angle(z)))
+set_modulus(z, l) = abs(l) * exp(1im * angle(z))
 set_modulus(x::Matrix{Complex{Float64}}, Φs) = broadcast(set_modulus, x, Φs)
 export set_modulus
 
@@ -33,6 +35,7 @@ function gray_modulus(c::AbstractRGBA)
 end
 export gray_modulus
 
+# POSSIBLY DEPRECATED?
 function fit_my_range(xx)
 	xx_min = minimum(xx)
 	range = maximum(xx) - xx_min
@@ -45,5 +48,18 @@ function half_roll(xx::AbstractArray)
 	circshift(xx, size(xx).÷2)
 end
 export half_roll
+
+"computes the difference between xx and yy as the sum of squared differences at each value."
+function sum_sq_diff(xx, yy)
+	sum(broadcast(-, xx, yy).^2)
+end
+export sum_sq_diff
+
+"rescales every element of xx to fit between 0 and 1"
+function cap(xx)
+	yy = (xx .- minimum(xx))
+	yy ./ maximum(yy)
+end
+export cap
 
 end
