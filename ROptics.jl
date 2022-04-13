@@ -22,11 +22,11 @@ Plots.png(x::Matrix{Complex{Float64}}, filepath) = png(plot(Gray24.(fit_my_range
 
 #set_phase(z, Φ) = complex(abs(z) * cos(Φ), abs(z) * sin(Φ))
 set_phase(z, Φ) = abs(z) * exp(1im * Φ)
-set_phase(x::Matrix{Complex{Float64}}, Φs) = broadcast(set_phase, x, Φs)
+set_phase(zz::Matrix{Complex{Float64}}, Φs) = broadcast(set_phase, zz, Φs)
 export set_phase
 #set_modulus(z, l) = complex(abs(l) * cos(angle(z)), abs(l) * sin(angle(z)))
-set_modulus(z, l) = abs(l) * exp(1im * angle(z))
-set_modulus(x::Matrix{Complex{Float64}}, Φs) = broadcast(set_modulus, x, Φs)
+set_modulus(z, r) = abs(r) * exp(1im * angle(z))
+set_modulus(zz::Matrix{Complex{Float64}}, rs) = broadcast(set_modulus, zz, rs)
 export set_modulus
 
 function gray_modulus(c::AbstractRGBA)
@@ -62,4 +62,10 @@ function cap(xx)
 end
 export cap
 
+"computes the mean of xx as the sum of all elements divided by the size of the collection."
+function mean(xx)
+	sum(xx) / length(xx)
 end
+export mean
+
+end # MODULE END
