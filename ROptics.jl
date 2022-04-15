@@ -20,14 +20,15 @@ Plots.png(x::Matrix{Complex{Float64}}, filepath) = png(plot(Gray24.(fit_my_range
 # ^ method extension to plot
 #export png
 
-#set_phase(z, Φ) = complex(abs(z) * cos(Φ), abs(z) * sin(Φ))
 set_phase(z, Φ) = abs(z) * exp(1im * Φ)
 set_phase(zz::Matrix{Complex{Float64}}, Φs) = broadcast(set_phase, zz, Φs)
 export set_phase
-#set_modulus(z, l) = complex(abs(l) * cos(angle(z)), abs(l) * sin(angle(z)))
 set_modulus(z, r) = abs(r) * exp(1im * angle(z))
 set_modulus(zz::Matrix{Complex{Float64}}, rs) = broadcast(set_modulus, zz, rs)
 export set_modulus
+set_nonzero_modulus(z, r) = abs(z) == 0 ? z : set_modulus(z, r)
+set_nonzero_modulus(zz::Matrix{Complex{Float64}}, rs) = broadcast(set_nonzero_modulus, zz, rs)
+export set_nonzero_modulus
 
 function gray_modulus(c::AbstractRGBA)
 	colors = (red(c), green(c), blue(c))
@@ -55,6 +56,13 @@ function sum_sq_diff(xx, yy)
 end
 export sum_sq_diff
 
+"computes the 2-norm (euclidean) between xx and yy as the sqrt of sum of squared differences at each value."
+function norm(xx, yy)
+	sqrt(sum_sq_diff(xx, yy))
+end
+norm(xx) = norm(xx, 0) # non-difference norm.
+export norm
+
 "rescales every element of xx to fit between 0 and 1"
 function cap(xx)
 	yy = (xx .- minimum(xx))
@@ -67,5 +75,13 @@ function mean(xx)
 	sum(xx) / length(xx)
 end
 export mean
+
+"square: rounds x to 3 sigfigs. useful for pipe notation 3.999... |> □."
+□(x) = round(x, sigdigits = 3)
+export □
+
+"blacksquare: returns a rounding function to n significant figures. default is 3."
+■(n = 3) = (x -> round(x, sigdigits = n))
+export ■
 
 end # MODULE END
