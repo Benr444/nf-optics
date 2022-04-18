@@ -56,6 +56,12 @@ function sum_sq_diff(xx, yy)
 end
 export sum_sq_diff
 
+"computes the mean squared error between xx and yy as the average sum of squared differences at each value."
+function mean_se(xx, yy)
+	mean(broadcast(-, xx, yy).^2)
+end
+export mean_se
+
 "computes the 2-norm (euclidean) between xx and yy as the sqrt of sum of squared differences at each value."
 function norm(xx, yy)
 	sqrt(sum_sq_diff(xx, yy))

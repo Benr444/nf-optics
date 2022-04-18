@@ -22,7 +22,7 @@ Plots.default(aspect_ratio = :auto, size = (800, 800))
 my_λ = 1.0 # units:
 my_scale = 1.0 # units:
 low_freq_filter_size = lffs = 20
-total_cycles = 50
+total_cycles = 20
 
 g, gˈ, G, Gˈ = Dict(), Dict(), Dict(), Dict() # prime marker is \verts
 # g = relief guess.
@@ -30,8 +30,12 @@ g, gˈ, G, Gˈ = Dict(), Dict(), Dict(), Dict() # prime marker is \verts
 # G = far-field pattern.
 # Gˈ = moduli-corrected pattern (same moduli as given initial pattern).
 
+h, hˈ, H, Hˈ = Dict(), Dict(), Dict(), Dict()
+# binary-level data
+
 G_errors = zeros(total_cycles)
 # ^ stores diffs from the target G[0]. there is 1 such diff for each cycle (0 is not graphed).
+H_errors = zeros(total_cycles)
 
 G[0] = Complex{Float64}.(make_field("in/$(file_name).png")) # read in pattern. cast to Complex64 type.
 image_size = size(G[0])[1]
@@ -44,6 +48,10 @@ g[0] = set_phase(g[0], random_phases)
 #png(heatmap(abs.(half_roll(g[0])), title="|g|"), "out/$(file_name)--moduli-gg0.png")
 #png(heatmap(angle.(G[0]), title="Φ(G)"), "out/$(file_name)--phases-G0.png")
 #png(heatmap(angle.(half_roll(g[0])), title="Φ(g)"), "out/$(file_name)--phases-gg0.png")
+
+H[0] = copy(G[0])
+h[0] = copy(g[0])
+
 for i in 1:total_cycles
 	#gˈ[i] = set_phase(g[i - 1], 0)
 	gˈ[i] = set_modulus(g[i - 1], g[0])
@@ -51,68 +59,61 @@ for i in 1:total_cycles
 	Gˈ[i] = set_modulus(G[i], G[0]) # set the modulus of the current guess to be that of the target
 	g[i] = F⁻¹(Gˈ[i])
 
-	#@show gˈ_modulus_mean = mean(abs.(gˈ[i]))
-	#@show gˈmodulus_diff = round(norm(abs.(gˈ[i]), 1.0), sigdigits = 3)
-	#@show gˈ_modulus_is_1 = all(abs.(gˈ[i]) .== 1.0)
-
-	#@show sizes_match = (size(g[i]) == size(G[i]))
-
-	G_raw = F(g[i - 1]) # uncorrected propagation.
-	#@show correction_diff = round(norm(abs.(G_raw), abs.(G[i])), sigdigits = 3)
-
-	#@show insanity_modulus_diff = round(norm(abs.(G_raw), abs.(G[0])), sigdigits = 3)
-	#@show insanity_phase_diff = round(norm(angle.(G_raw), angle.(G[0])), sigdigits = 3)
+	# cast so hˈ[i] only has two values
+	# in the end, it will be rescaled to maximally fit in -π to \pi
+	binary_phases = (c -> angle(c) < 0 ? -π : π).(h[i - 1])
+	hˈ[i] = set_phase(set_modulus(h[i - 1], h[0]), binary_phases)
+	H[i] = F(hˈ[i])
+	Hˈ[i] = set_modulus(H[i], H[0])
+	h[i] = F⁻¹(Hˈ[i])
 	
-	#G_errors[i] = norm(cap(abs.(G[0])), cap(abs.(G[i])))
-	G_errors[i] = norm(abs.(G[0]), abs.(G[i]))
-	#@show round(G_errors[i], sigdigits = 3)
-	println("G_errors[$i] = ", □(G_errors[i]))
-	#@show norm(abs.(G[0])) |> □
-	#@show norm_G_i = norm(abs.(G[i]))
-	#@show norm_gˈ_i = norm(abs.(gˈ[i]))
-	#@show plancherel_diff = norm_gˈ_i - norm_G_i
-	#@show size(gˈ[i]) == size(G[i])
-	#@show Gˈ_error = round(norm(abs.(G[0]), abs.(Gˈ[i])), sigdigits = 3)
-	#@show g_error = round(norm(abs.(g[0]), abs.(g[i])), sigdigits = 3)
-	#@show gˈ_error = round(norm(abs.(g[0]), abs.(gˈ[i])), sigdigits = 3)
+	G_errors[i] = mean_se(abs.(G[0]), abs.(G[i]))
+	#println("G_errors[$i] = ", □(G_errors[i]))
+	H_errors[i] = mean_se(abs.(H[0]), abs.(H[i]))
+	
+	#png(heatmap(abs.(G[i]), title="|G|"), "out/$(file_name)--moduli-G$i.png")
+	#png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
+	#png(heatmap(angle.(G[i]), title="Φ(G)"), "out/$(file_name)--phases-G$i.png")
+	#png(heatmap(angle.(half_roll(g[i])), title="Φ(g)"), "out/$(file_name)--phases-gg$(i).png")
 
-	#@show g_change = round(norm(abs.(g[i - 1]), abs.(g[i])), sigdigits = 3)
-
-	png(heatmap(abs.(G[i]), title="|G|"), "out/$(file_name)--moduli-G$i.png")
-	png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
-	png(heatmap(angle.(G[i]), title="Φ(G)"), "out/$(file_name)--phases-G$i.png")
-	png(heatmap(angle.(half_roll(g[i])), title="Φ(g)"), "out/$(file_name)--phases-gg$(i).png")
-
-	#Gi_moduli_list = vec(abs.(G[i]))
-	#png(histogram(Gi_moduli_list, bins=20, title="|G| distribution", yaxis = :log), "out/$(file_name)--moduli-G$i-distribution.png")
+	#png(histogram(vec(abs.(G[i])), bins=20, title="|G| distribution", yaxis = :log), "out/$(file_name)--moduli-G$i-distribution.png")
+	png(histogram(vec(angle.(g[i])), bins=20, title="Φ(g) distribution", yaxis = :log), "out/$(file_name)--phases-gg$i-distribution.png")
 
 	#save("out/$(file_name)--phases-gg$(i)-matrix.png", cap(angle.(half_roll(g[i]))))
 	println("Cycle $i finished.")
 end
 
-
 save("out/$(file_name)--moduli-G-final-matrix.png", cap(abs.(G[total_cycles])))
 
-G_errors_step = (maximum(G_errors) - minimum(G_errors)) / 10#length(G_errors)
-G_errors_plot = plot(G_errors,
-					 title = "Errors of G",
-					 label = "",
-					 aspect_ratio = :auto, # VERY IMPORTANT
-					 xlabel = "Cycle",
-					 ylabel = "Sum Square Differences of Moduli of G relative to G[0]",
-					 xlims = (1, length(G_errors)),
-					 #series_annotations = string.(round.(G_errors, sigdigits = 3)),
-					 ylims = (minimum(G_errors), maximum(G_errors)),
-					 yticks = (x -> round(x, sigdigits = 5)).(minimum(G_errors):G_errors_step:maximum(G_errors)))
+garnet_color = RGB(((115, 0, 17) ./ 255)...)
+orangish_color = RGB(((245, 102, 0) ./ 255)...)
 
-png(G_errors_plot, "out/$file_name--G-errors.png")
+@show H_errors
+errors_max = max(maximum(G_errors), maximum(H_errors))
+
+G_errors_step = (errors_max - minimum(G_errors)) / 10#length(G_errors)
+errors_plot = plot(H_errors,
+				   label = "Quantized object",
+				   linecolor = false, # turns off line color
+				   fill = (0, orangish_color))
+errors_plot = plot!(errors_plot, G_errors,
+				    label = "Continuous object",
+				    linecolor = false,
+				    fill = (0, garnet_color))
+errors_plot = plot!(errors_plot,
+					title = "Errors from Target Pattern",
+				 	aspect_ratio = :auto, # VERY IMPORTANT
+				 	xlabel = "Cycle",
+				 	ylabel = "MSE",
+				 	xlims = (1, length(G_errors)),
+				 	ylims = (minimum(G_errors), maximum(G_errors)),
+				 	yticks = ■(3).(minimum(G_errors):G_errors_step:maximum(G_errors)),) 
+
+png(errors_plot, "out/$file_name--errors.png")
 
 # filter off the high-frequency values. IMPORTANT: do not roll g[i] before doing this!
 g_final_filtered = g[total_cycles][1:lffs, 1:lffs]
 G_final_filtered = F(vcat(hcat(g_final_filtered, zeros(lffs, image_size - lffs)), zeros(image_size - lffs, image_size)))
-
-@show size(cap(abs.(G[total_cycles])))
-@show size(cap(abs.(G_final_filtered)))
 
 save("out/$file_name--G-final--low-freq-$lffs.png", cap(abs.(G_final_filtered)))
 save("out/$file_name--gg-final.png", half_roll(cap(abs.(g[total_cycles]))))
