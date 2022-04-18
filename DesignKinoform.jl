@@ -54,7 +54,7 @@ H′[0] = copy(G′[0])
 h′[0] = copy(g′[0])
 h[0] = copy(g[0])
 
-β = 0.7
+β = 0.9
 function Δg_d(z′, z)
 	if abs(z′) == 1.0
 		return 0
@@ -88,6 +88,7 @@ for i in 1:total_cycles
 	#g[i] = set_modulus(g′[i - 1], g′[0])
 	#g[i] = set_modulus(g′[i - 1], 1.0) # <----- this is really the one i swear. eq 24 in Fienup 1984 reduces to this if β = 1.
 	#g[i] = set_modulus(g′[i - 1], I)′
+	g[i] = set_modulus(g′[i - 1], β) .+ (1 - β) .* h′[i - 1]
 	
 	g[i] = g′[i - 1] .+ (β .* Δg_d.(g′[i - 1], g[i - 1]))
 	G[i] = F(g[i])
@@ -95,7 +96,7 @@ for i in 1:total_cycles
 	g′[i] = F⁻¹(G′[i])
 	
 	#h[i] = set_modulus(h′[i - 1], h′[0])
-	h[i] = set_modulus(h′[i - 1], 1.0)
+	h[i] = set_modulus(h′[i - 1], β)
 	H[i] = F(h[i])
 	H′[i] = set_modulus(H[i], H′[0]) # set the modulus of the current guess to be that of the target
 	h′[i] = F⁻¹(H′[i])
