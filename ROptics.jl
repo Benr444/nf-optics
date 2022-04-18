@@ -35,14 +35,6 @@ function gray_modulus_old(c::AbstractRGBA)
 end
 export gray_modulus_old
 
-# POSSIBLY DEPRECATED?
-function fit_my_range(xx)
-	xx_min = minimum(xx)
-	range = maximum(xx) - xx_min
-	(xx .- xx_min)./range # -1 -> 1
-end
-export fit_my_range
-
 # roll any array so its first position becomes 'centered'
 function half_roll(xx::AbstractArray)
 	circshift(xx, size(xx).÷2)
@@ -51,13 +43,13 @@ export half_roll
 
 "computes the difference between xx and yy as the sum of squared differences at each value."
 function sum_sq_diff(xx, yy)
-	sum(broadcast(-, xx, yy).^2)
+	sum(abs.(broadcast(-, xx, yy)).^2)
 end
 export sum_sq_diff
 
 "computes the mean squared error between xx and yy as the average sum of squared differences at each value."
 function mean_se(xx, yy)
-	mean(broadcast(-, xx, yy).^2)
+	mean(abs.(broadcast(-, xx, yy)).^2)
 end
 export mean_se
 
@@ -68,10 +60,21 @@ end
 norm(xx) = norm(xx, 0) # non-difference norm.
 export norm
 
+"fienup-defined mean-squared-error of xx and yy."
+function f_mse(xx, yy)
+	sum(abs.(broadcast(-, xx, yy)).^2) / sum(abs.(yy).^2)
+end
+export f_mse
+
 "rescales every element of xx to fit between 0 and 1"
 function cap(xx)
 	yy = (xx .- minimum(xx))
-	yy ./ maximum(yy)
+	if maximum(yy) == 0.0
+		@show maximum(yy)
+		return yy
+	else
+		return yy ./ maximum(yy)
+	end
 end
 export cap
 

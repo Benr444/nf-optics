@@ -23,7 +23,7 @@ Plots.default(aspect_ratio = :auto, size = (1200, 1200), fontfamily = font("Comp
 my_λ = 1.0 # units:
 my_scale = 1.0 # units:
 low_freq_filter_size = lffs = 20
-total_cycles = 50
+total_cycles = 20
 
 g, gˈ, G, Gˈ = Dict(), Dict(), Dict(), Dict() # prime marker is \verts
 # g = relief guess.
@@ -38,43 +38,71 @@ G_errors = zeros(total_cycles)
 # ^ stores diffs from the target G[0]. there is 1 such diff for each cycle (0 is not graphed).
 H_errors = zeros(total_cycles)
 
-G[0] = Complex{Float64}.(make_field("in/$(file_name).png")) # read in pattern. cast to Complex64 type.
-image_size = size(G[0])[1]
-#G[0] = set_phase(G[0], 0)
-g[0] = F⁻¹(G[0]) # create relief guess by reverse-propagating pattern
-random_phases = (rand(Float64, size(g[0])) .- 0.5) .* 2π
-# ^ generate random phases. start with r ∈ (0 to 1]. then rescale to fit in (-π to π].
-g[0] = set_phase(g[0], random_phases)
-#png(heatmap(abs.(G[0]), title="|G|"), "out/$(file_name)--moduli-G0.png")
-#png(heatmap(abs.(half_roll(g[0])), title="|g|"), "out/$(file_name)--moduli-gg0.png")
-#png(heatmap(angle.(G[0]), title="Φ(G)"), "out/$(file_name)--phases-G0.png")
-#png(heatmap(angle.(half_roll(g[0])), title="Φ(g)"), "out/$(file_name)--phases-gg0.png")
+I = ComplexF64.(make_field("in/$illumination_file_name.png"))
+#save("out/$file_name--I.png", cap(abs.(I)))
 
-H[0] = copy(G[0])
+Gˈ[0] = Complex{Float64}.(make_field("in/$(file_name).png")) # read in pattern. cast to Complex64 type.
+image_size = size(Gˈ[0])[1]
+random_phases = (rand(Float64, size(Gˈ[0])) .- 0.5) .* 2π
+# ^ generate random phases. start with r ∈ (0 to 1]. then rescale to fit in (-π to π].
+gˈ[0] = F⁻¹(Gˈ[0])# create relief guess by reverse-propagating pattern.
+gˈ[0] = set_phase(gˈ[0], random_phases)
+g[0] = set_modulus(gˈ[0], 1) # force-satisfy constraints for first object guess.
+
+Hˈ[0] = copy(Gˈ[0])
+hˈ[0] = copy(gˈ[0])
 h[0] = copy(g[0])
 
-for i in 1:total_cycles
-	gˈ[i] = set_modulus(g[i - 1], g[0])
-	#gˈ[i] = set_phase(g[i - 1], angle.(g[0]))
-	G[i] = F(gˈ[i])
-	Gˈ[i] = set_modulus(G[i], G[0]) # set the modulus of the current guess to be that of the target
-	g[i] = F⁻¹(Gˈ[i])
+β = 0.5
+function fienup_fix(zˈ, z)
+	if abs(zˈ) > 0
+		return zˈ
+	else
+		return z - (β * zˈ)
+	end
+end
 
-	# cast so hˈ[i] only has two values
-	# in the end, it will be rescaled to maximally fit in -π to \pi
-	binary_phases = (c -> angle(c) < 0 ? -π : π).(h[i - 1])
-	hˈ[i] = set_phase(set_modulus(h[i - 1], h[0]), binary_phases)
-	H[i] = F(hˈ[i])
-	Hˈ[i] = set_modulus(H[i], H[0])
-	h[i] = F⁻¹(Hˈ[i])
+function scale_fix(zˈ, z)
+	# abs(z) is 1, assumed, bc it satisfies object constraints.
+	if abs(zˈ) < 1
+		return zˈ + β * z
+	elseif abs(zˈ) > 1
+		return zˈ - β * z
+	else
+		return zˈ
+	end
+end
+
+for i in 1:total_cycles
+	#g[i] = broadcast(fienup_fix, gˈ[i - 1], g[i - 1])
+	g[i] = scale_fix.(gˈ[i - 1], g[i - 1])
+	#g[i] = set_modulus(gˈ[i - 1], gˈ[0])
+	#g[i] = set_modulus(gˈ[i - 1], 1)
+	G[i] = F(g[i])
+	Gˈ[i] = set_modulus(G[i], Gˈ[0])
+	gˈ[i] = F⁻¹(Gˈ[i])
 	
-	G_errors[i] = mean_se(abs.(G[0]), abs.(G[i]))
-	#println("G_errors[$i] = ", □(G_errors[i]))
-	H_errors[i] = mean_se(abs.(H[0]), abs.(H[i]))
-	
+	h[i] = set_modulus(hˈ[i - 1], hˈ[0])
+	H[i] = F(h[i])
+	Hˈ[i] = set_modulus(H[i], Hˈ[0]) # set the modulus of the current guess to be that of the target
+	hˈ[i] = F⁻¹(Hˈ[i])
+
+	#G_errors[i] = f_mse(abs.(G[i]), abs.(Gˈ[0]))
+	G_errors[i] = f_mse(abs.(G[i]), abs.(Gˈ[i]))
+	#G_errors[i] = norm(abs.(G[i]), abs.(Gˈ[0]))
+	println("G_errors[$i] = ", □(G_errors[i]))
+	#H_errors[i] = f_mse(abs.(H[i]), abs.(Hˈ[0]))
+	H_errors[i] = f_mse(H[i], Hˈ[i])
+	#H_errors[i] = norm(abs.(H[i]), abs.(Hˈ[0]))
+	#println("H_errors[$i] = ", □(H_errors[i]))
+
+	#png(heatmap(abs.(Gˈ[i]), title="|G′|"), "out/$(file_name)--moduli-G'$i.png")
+	png(heatmap(abs.(half_roll(gˈ[i])), title="|g′|"), "out/$(file_name)--moduli-gg'$(i).png")
+	#png(heatmap(angle.(Gˈ[i]), title="Φ(G′)"), "out/$(file_name)--phases-G'$i.png")
+	png(heatmap(angle.(half_roll(gˈ[i])), title="Φ(g′)"), "out/$(file_name)--phases-gg'$(i).png")
+
 	#png(heatmap(abs.(G[i]), title="|G|"), "out/$(file_name)--moduli-G$i.png")
 	#png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
-	#png(heatmap(angle.(G[i]), title="Φ(G)"), "out/$(file_name)--phases-G$i.png")
 	#png(heatmap(angle.(half_roll(g[i])), title="Φ(g)"), "out/$(file_name)--phases-gg$(i).png")
 
 	#png(histogram(vec(abs.(G[i])), bins=20, title="|G| distribution", yaxis = :log), "out/$(file_name)--moduli-G$i-distribution.png")
@@ -84,22 +112,26 @@ for i in 1:total_cycles
 	println("Cycle $i finished.")
 end
 
+gˈ★ = gˈ[total_cycles] # \bigstar
 g★ = g[total_cycles] # \bigstar
+save("out/$file_name--moduli-gg'-final.png", half_roll(cap(abs.(gˈ★))))
+save("out/$file_name--moduli-G-final.png", cap(abs.(F(g★))))
+save("out/$file_name--phases-gg-final.png", half_roll(cap(angle.(g★))))
 
 garnet_color = RGB(((115, 0, 17) ./ 255)...)
 orangish_color = RGB(((245, 102, 0) ./ 255)...)
 
-errors_max = max(maximum(G_errors), maximum(H_errors))
-
-G_errors_step = (errors_max - minimum(G_errors)) / 10#length(G_errors)
-errors_plot = plot(H_errors,
-				   label = "Quantized object",
-				   linecolor = false, # turns off line color
-				   fill = (0, orangish_color))
-errors_plot = plot!(errors_plot, G_errors,
-				    label = "Continuous object",
-				    linecolor = false,
-				    fill = (0, garnet_color))
+#errors_max = max(maximum(G_errors), maximum(H_errors))
+#G_errors_step = (errors_max - minimum(G_errors)) / 10#length(G_errors)
+G_errors_step = (maximum(G_errors) - minimum(G_errors)) / length(G_errors)
+errors_plot = plot(G_errors,
+				   label = "G",
+				   linecolor = false,
+				   fill = (0, garnet_color))
+#errors_plot = plot!(errors_plot, H_errors,
+#				   label = "H",
+#				   linecolor = false, # turns off line color
+#				   fill = (0, orangish_color))
 errors_plot = plot!(errors_plot,
 					title = "Errors from Target Pattern",
 				 	aspect_ratio = :auto, # VERY IMPORTANT
@@ -110,20 +142,17 @@ errors_plot = plot!(errors_plot,
 				 	yticks = ■(3).(minimum(G_errors):G_errors_step:maximum(G_errors)),) 
 png(errors_plot, "out/$file_name--errors.png")
 
-# filter off the high-frequency values. IMPORTANT: do not roll g[i] before doing this!
-g_final_filtered = g★[1:lffs, 1:lffs]
-G_final_filtered = F(vcat(hcat(g_final_filtered, zeros(lffs, image_size - lffs)), zeros(image_size - lffs, image_size)))
+# filter off the high-frequency values. IMPORTANT: do not roll gˈ★[i] before doing this!
+#gˈ_final_filtered = gˈ★[1:lffs, 1:lffs]
+#Gˈ_final_filtered = F(vcat(hcat(gˈ_final_filtered, zeros(lffs, image_size - lffs)), zeros(image_size - lffs, image_size)))
+#save("out/$file_name--G'-final--low-freq-$lffs.png", cap(abs.(Gˈ_final_filtered)))
+#save("out/$file_name--g'-final--low-freq-$lffs.png", cap(abs.(gˈ_final_filtered)))
 
-save("out/$file_name--G-final.png", cap(abs.(g★)))
-save("out/$file_name--G-final--low-freq-$lffs.png", cap(abs.(G_final_filtered)))
-save("out/$file_name--gg-final.png", half_roll(cap(abs.(g★))))
-save("out/$file_name--gg-final--low-freq-$lffs.png", cap(abs.(g_final_filtered)))
-
-I = make_field("in/$illumination_file_name.png")
-png(heatmap(I, title="I"), "out/$(file_name)--I.png")
+#png(heatmap(I, title="I"), "out/$(file_name)--I.png")
 q = half_roll(g★) # basically q at least
-g_illuminated = set_modulus(q, abs.(I) .* abs.(q))
-#g_illuminated = I .* (Φ	-> exp(1im * Φ)).(abs.(q))
+#g_illuminated = set_modulus(q, abs.(I) .* abs.(q))
+g_illuminated = set_modulus(q, abs.(I))
+#g_illuminated = I .* (Φ	-> exp(1im * Φ)).(angle.(q))
 save("out/$file_name--gg-illuminated.png", cap(abs.(g_illuminated)))
 save("out/$file_name--G-illuminated.png", cap(abs.(F(g_illuminated))))
 
