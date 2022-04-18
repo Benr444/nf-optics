@@ -15,7 +15,7 @@ using Plots; gr()
 Revise.includet("ROptics.jl")
 using Main.ROptics
 
-file_name = "sad-200px"
+file_name = "uofsc-200px"
 illumination_file_name = "illumination-200px"
 
 Plots.default(aspect_ratio = :auto, size = (1200, 1200), fontfamily = font("Computer Modern"))
@@ -36,6 +36,7 @@ h, h′, H, H′ = Dict(), Dict(), Dict(), Dict()
 
 G_errors = zeros(total_cycles)
 # ^ stores diffs from the target G[0]. there is 1 such diff for each cycle (0 is not graphed).
+g′_errors = zeros(total_cycles)
 H_errors = zeros(total_cycles)
 
 I = ComplexF64.(make_field("in/$illumination_file_name.png"))
@@ -53,7 +54,15 @@ H′[0] = copy(G′[0])
 h′[0] = copy(g′[0])
 h[0] = copy(g[0])
 
-β = 0.5
+β = 0.7
+function Δg_d(z′, z)
+	if abs(z′) == 1.0
+		return 0
+	else
+		return abs(1.0) * (z′ / abs(z′)) - z′
+	end
+end
+
 function fienup_fix(z′, z)
 	if abs(z′) > 0
 		return z′
@@ -77,32 +86,36 @@ for i in 1:total_cycles
 	#g[i] = broadcast(fienup_fix, g′[i - 1], g[i - 1])
 	#g[i] = scale_fix.(g′[i - 1], g[i - 1])
 	#g[i] = set_modulus(g′[i - 1], g′[0])
-	g[i] = set_modulus(g′[i - 1], 1)
+	#g[i] = set_modulus(g′[i - 1], 1.0) # <----- this is really the one i swear. eq 24 in Fienup 1984 reduces to this if β = 1.
 	#g[i] = set_modulus(g′[i - 1], I)′
-	abs.(g[i])
+	
+	g[i] = g′[i - 1] .+ (β .* Δg_d.(g′[i - 1], g[i - 1]))
 	G[i] = F(g[i])
 	G′[i] = set_modulus(G[i], G′[0])
 	g′[i] = F⁻¹(G′[i])
 	
-	h[i] = set_modulus(h′[i - 1], h′[0])
+	#h[i] = set_modulus(h′[i - 1], h′[0])
+	h[i] = set_modulus(h′[i - 1], 1.0)
 	H[i] = F(h[i])
 	H′[i] = set_modulus(H[i], H′[0]) # set the modulus of the current guess to be that of the target
 	h′[i] = F⁻¹(H′[i])
 
 	#G_errors[i] = f_mse(abs.(G[i]), abs.(G′[0]))
 	G_errors[i] = f_mse(abs.(G[i]), abs.(G′[i]))
+	g′_errors[i] = f_mse(abs.(g[i]), abs.(g′[i]))
 	#G_errors[i] = norm(abs.(G[i]), abs.(G′[0]))
 	println("G_errors[$i] = ", □(G_errors[i]))
+	#println("g'_errors[$i] = ", □(g′_errors[i]))
 	#H_errors[i] = f_mse(abs.(H[i]), abs.(H′[0]))
-	H_errors[i] = f_mse(H[i], H′[i])
+	H_errors[i] = f_mse(abs.(H[i]), abs.(H′[i]))
 	#H_errors[i] = norm(abs.(H[i]), abs.(H′[0]))
-	#println("H_errors[$i] = ", □(H_errors[i]))
+	println("H_errors[$i] = ", □(H_errors[i]))
 
 	#png(heatmap(abs.(G′[i]), title="|G′|"), "out/$(file_name)--moduli-G'$i.png")
-	png(heatmap(abs.(half_roll(g′[i])), title="|g′|"), "out/$(file_name)--moduli-gg'$(i).png")
-	png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
+	#png(heatmap(abs.(half_roll(g′[i])), title="|g′|"), "out/$(file_name)--moduli-gg'$(i).png")
+	#png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
 	#png(heatmap(angle.(G′[i]), title="Φ(G′)"), "out/$(file_name)--phases-G'$i.png")
-	png(heatmap(angle.(half_roll(g′[i])), title="Φ(g′)"), "out/$(file_name)--phases-gg'$(i).png")
+	#png(heatmap(angle.(half_roll(g′[i])), title="Φ(g′)"), "out/$(file_name)--phases-gg'$(i).png")
 
 	#png(heatmap(abs.(G[i]), title="|G|"), "out/$(file_name)--moduli-G$i.png")
 	#png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
@@ -126,15 +139,15 @@ orangish_color = RGB(((245, 102, 0) ./ 255)...)
 
 #errors_max = max(maximum(G_errors), maximum(H_errors))
 #G_errors_step = (errors_max - minimum(G_errors)) / 10#length(G_errors)
-G_errors_step = (maximum(G_errors) - minimum(G_errors)) / length(G_errors)
+G_errors_step = (maximum(G_errors) - minimum(G_errors)) / 10#length(G_errors)
 errors_plot = plot(G_errors,
 				   label = "G",
 				   linecolor = false,
 				   fill = (0, garnet_color))
-#errors_plot = plot!(errors_plot, H_errors,
-#				   label = "H",
-#				   linecolor = false, # turns off line color
-#				   fill = (0, orangish_color))
+errors_plot = plot!(errors_plot, H_errors,
+				   label = "H",
+				   linecolor = false, # turns off line color
+				   fill = (0, orangish_color))
 errors_plot = plot!(errors_plot,
 					title = "Errors from Target Pattern",
 				 	aspect_ratio = :auto, # VERY IMPORTANT
