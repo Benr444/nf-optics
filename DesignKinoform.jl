@@ -11,18 +11,19 @@ module DesignKinoform
 
 using Revise
 using Images, FileIO, FFTW, Random
-using Plots; pyplot()
+using Plots; gr()
 Revise.includet("ROptics.jl")
 using Main.ROptics
 
 file_name = "uofsc-200px"
+illumination_file_name = "illumination-200px"
 
-Plots.default(aspect_ratio = :auto, size = (800, 800))
+Plots.default(aspect_ratio = :auto, size = (1200, 1200), fontfamily = font("Computer Modern"))
 
 my_λ = 1.0 # units:
 my_scale = 1.0 # units:
 low_freq_filter_size = lffs = 20
-total_cycles = 20
+total_cycles = 50
 
 g, gˈ, G, Gˈ = Dict(), Dict(), Dict(), Dict() # prime marker is \verts
 # g = relief guess.
@@ -53,8 +54,8 @@ H[0] = copy(G[0])
 h[0] = copy(g[0])
 
 for i in 1:total_cycles
-	#gˈ[i] = set_phase(g[i - 1], 0)
 	gˈ[i] = set_modulus(g[i - 1], g[0])
+	#gˈ[i] = set_phase(g[i - 1], angle.(g[0]))
 	G[i] = F(gˈ[i])
 	Gˈ[i] = set_modulus(G[i], G[0]) # set the modulus of the current guess to be that of the target
 	g[i] = F⁻¹(Gˈ[i])
@@ -77,18 +78,17 @@ for i in 1:total_cycles
 	#png(heatmap(angle.(half_roll(g[i])), title="Φ(g)"), "out/$(file_name)--phases-gg$(i).png")
 
 	#png(histogram(vec(abs.(G[i])), bins=20, title="|G| distribution", yaxis = :log), "out/$(file_name)--moduli-G$i-distribution.png")
-	png(histogram(vec(angle.(g[i])), bins=20, title="Φ(g) distribution", yaxis = :log), "out/$(file_name)--phases-gg$i-distribution.png")
+	#png(histogram(vec(angle.(g[i])), bins=20, title="Φ(g) distribution",), "out/$(file_name)--phases-gg$i-distribution.png")
 
 	#save("out/$(file_name)--phases-gg$(i)-matrix.png", cap(angle.(half_roll(g[i]))))
 	println("Cycle $i finished.")
 end
 
-save("out/$(file_name)--moduli-G-final-matrix.png", cap(abs.(G[total_cycles])))
+g★ = g[total_cycles] # \bigstar
 
 garnet_color = RGB(((115, 0, 17) ./ 255)...)
 orangish_color = RGB(((245, 102, 0) ./ 255)...)
 
-@show H_errors
 errors_max = max(maximum(G_errors), maximum(H_errors))
 
 G_errors_step = (errors_max - minimum(G_errors)) / 10#length(G_errors)
@@ -104,19 +104,27 @@ errors_plot = plot!(errors_plot,
 					title = "Errors from Target Pattern",
 				 	aspect_ratio = :auto, # VERY IMPORTANT
 				 	xlabel = "Cycle",
-				 	ylabel = "MSE",
+				 	ylabel = "Mean Squared Error (MSE)",
 				 	xlims = (1, length(G_errors)),
 				 	ylims = (minimum(G_errors), maximum(G_errors)),
 				 	yticks = ■(3).(minimum(G_errors):G_errors_step:maximum(G_errors)),) 
-
 png(errors_plot, "out/$file_name--errors.png")
 
 # filter off the high-frequency values. IMPORTANT: do not roll g[i] before doing this!
-g_final_filtered = g[total_cycles][1:lffs, 1:lffs]
+g_final_filtered = g★[1:lffs, 1:lffs]
 G_final_filtered = F(vcat(hcat(g_final_filtered, zeros(lffs, image_size - lffs)), zeros(image_size - lffs, image_size)))
 
+save("out/$file_name--G-final.png", cap(abs.(g★)))
 save("out/$file_name--G-final--low-freq-$lffs.png", cap(abs.(G_final_filtered)))
-save("out/$file_name--gg-final.png", half_roll(cap(abs.(g[total_cycles]))))
+save("out/$file_name--gg-final.png", half_roll(cap(abs.(g★))))
 save("out/$file_name--gg-final--low-freq-$lffs.png", cap(abs.(g_final_filtered)))
+
+I = make_field("in/$illumination_file_name.png")
+png(heatmap(I, title="I"), "out/$(file_name)--I.png")
+q = half_roll(g★) # basically q at least
+g_illuminated = set_modulus(q, abs.(I) .* abs.(q))
+#g_illuminated = I .* (Φ	-> exp(1im * Φ)).(abs.(q))
+save("out/$file_name--gg-illuminated.png", cap(abs.(g_illuminated)))
+save("out/$file_name--G-illuminated.png", cap(abs.(F(g_illuminated))))
 
 end # end module

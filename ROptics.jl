@@ -26,15 +26,14 @@ export set_phase
 set_modulus(z, r) = abs(r) * exp(1im * angle(z))
 set_modulus(zz::Matrix{Complex{Float64}}, rs) = broadcast(set_modulus, zz, rs)
 export set_modulus
-set_nonzero_modulus(z, r) = abs(z) == 0 ? z : set_modulus(z, r)
-set_nonzero_modulus(zz::Matrix{Complex{Float64}}, rs) = broadcast(set_nonzero_modulus, zz, rs)
-export set_nonzero_modulus
 
-function gray_modulus(c::AbstractRGBA)
+gray_modulus(c::AbstractRGBA) = Float64(Gray(c))
+export gray_modulus
+function gray_modulus_old(c::AbstractRGBA)
 	colors = (red(c), green(c), blue(c))
 	(sqrt ∘ sum)((colors.^2))
 end
-export gray_modulus
+export gray_modulus_old
 
 # POSSIBLY DEPRECATED?
 function fit_my_range(xx)
