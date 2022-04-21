@@ -27,7 +27,9 @@ set_modulus(z, r) = abs(r) * exp(1im * angle(z))
 set_modulus(zz::Matrix{Complex{Float64}}, rs) = broadcast(set_modulus, zz, rs)
 export set_modulus
 
+gray_modulus(c::AbstractRGB) = Float64(Gray(c))
 gray_modulus(c::AbstractRGBA) = Float64(Gray(c))
+gray_modulus(gc::Gray) = Float64(gc)
 export gray_modulus
 function gray_modulus_old(c::AbstractRGBA)
 	colors = (red(c), green(c), blue(c))
@@ -62,6 +64,7 @@ export norm
 
 "fienup-defined mean-squared-error of xx and yy."
 function f_mse(xx, yy)
+	#Nsq = size(xx)[1] * size(xx)[2]
 	sum(abs.(broadcast(-, xx, yy)).^2) / sum(abs.(yy).^2)
 end
 export f_mse
@@ -70,7 +73,6 @@ export f_mse
 function cap(xx)
 	yy = (xx .- minimum(xx))
 	if maximum(yy) == 0.0
-		@show maximum(yy)
 		return yy
 	else
 		return yy ./ maximum(yy)

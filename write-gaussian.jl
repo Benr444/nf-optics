@@ -1,6 +1,6 @@
 using Images, Plots
 
-edge_length = 200
+edge_length = 768
 function gaussian(x, y, x_0, y_0, σ_x, σ_y)
 	diff_x = ((x - x_0) / σ_x)^2
 	diff_y = ((y - y_0) / σ_y)^2
@@ -22,6 +22,6 @@ for i in 1:edge_length
 	end
 end
 	
-display(heatmap(X))
+#display(heatmap(X))
 
-save("in/gaussian-200px.png", X)
+save("in/gaussian-$(edge_length)px.png", X)

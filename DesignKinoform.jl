@@ -10,18 +10,23 @@
 module DesignKinoform
 
 using Revise
-using Images, FileIO, FFTW, Random
+using Images, FileIO, FFTW, Random, LaTeXStrings
 using Plots; gr()
 Revise.includet("ROptics.jl")
 using Main.ROptics
 
+#file_name = "three-200px"
 file_name = "uofsc-200px"
-illumination_file_name = "illumination-200px"
+#file_name = "cat-768px"
+illumination_file_name = "gaussian-200px"
+#illumination_file_name = "gaussian-768px"
 
-Plots.default(aspect_ratio = :auto, size = (1200, 1200), fontfamily = font("Computer Modern"))
+Plots.default(aspect_ratio = :auto, size = (1500, 1500), fontfamily = font("Computer Modern"))
+Plots.scalefontsizes() # reset font sizes
+Plots.scalefontsizes(3) # scale from base
 
 low_freq_filter_size = lffs = 150
-total_cycles = 30
+total_cycles = 5
 
 g, g′, G, G′ = Dict(), Dict(), Dict(), Dict() # prime marker is \prime
 # g = relief guess.
@@ -54,8 +59,8 @@ G_errors = zeros(total_cycles)
 g′_errors = zeros(total_cycles)
 H_errors = zeros(total_cycles)
 
-I = ComplexF64.(make_field("in/$illumination_file_name.png"))
-#save("out/$file_name--I.png", cap(abs.(I)))
+s = ComplexF64.(make_field("in/$illumination_file_name.png"))
+#save("out/$file_name--s.png", cap(abs.(s)))
 
 
 random_phases = (rand(Float64, size(G′[0])) .- 0.5) .* 2π
@@ -77,12 +82,37 @@ function Δg_d(z′, z)
 	end
 end
 
+quantize2(z) = angle(z) < 0 ? -1.0 + 0.0im : 1.0 + 0.0im
+function quantize4angle(z)
+	Φz = angle(z)
+	if Φz < -π/3
+		set_phase(z, -π)
+	elseif Φz > π/3
+		set_phase(z, π)
+	elseif Φz <= 0
+		set_phase(z, -π/3)
+	elseif Φz > 0
+		set_phase(z, π/3)
+	end
+end
+function quantize4(z)
+	Φz = angle(z)
+	if Φz < -π/3
+		set_phase(1im, -π)
+	elseif Φz > π/3
+		set_phase(1im, π)
+	elseif Φz <= 0
+		set_phase(1im, -π/3)
+	elseif Φz > 0
+		set_phase(1im, π/3)
+	end
+end
 for i in 1:total_cycles
-	
 	#g[i] = set_modulus(g′[i - 1], g′[0])
 	#g[i] = set_modulus(g′[i - 1], mean(g′[i - 1]))
 	g[i] = set_modulus(g′[i - 1], 1) # <----- this is really the one i swear. eq 24 in Fienup 1984 reduces to this if β = 1.
-	#g[i] = set_modulus(g′[i - 1], β) .+ (1 - β) .* h′[i - 1]
+	#g[i] = set_modulus(g′[i - 1], abs.(s))
+	#g[i] = set_modulus(g′[i - 1], β) .+ (1 - β) .* g′[i - 1]
 	# this and the one below are algebraically equivalent (if i havent fucked with Δg_d since writing this comment).
 	#g[i] = g′[i - 1] .+ (β .* Δg_d.(g′[i - 1], g[i - 1]))
 
@@ -92,17 +122,25 @@ for i in 1:total_cycles
 	
 	#h[i] = set_modulus(h′[i - 1], h′[0])
 	h[i] = set_modulus(h′[i - 1], 1.0)
+	#h[i] = set_modulus(h′[i - 1], β) .+ (1 - β) .* h′[i - 1]
+	#new_phase(z) = angle(z) < 0 ? -π : π
+	#h[i] = set_phase(h′[i - 1], new_phase.(h′[i - 1]))
+	h[i] = quantize2.(h′[i - 1])
 	H[i] = F(h[i])
 	H′[i] = set_modulus(H[i], H′[0]) # set the modulus of the current guess to be that of the target
 	h′[i] = F⁻¹(H′[i])
 
 	G_errors[i] = f_mse(abs.(G[i]), abs.(G′[0]))
+	#G_errors[i] = f_mse(G[i], G′[0])
+	#G_errors[i] = f_mse(G′[i], G′[i - 1])
 	#G_errors[i] = f_mse(abs.(G[i]), abs.(G′[i]))
 	#g′_errors[i] = f_mse(abs.(g[i]), abs.(g′[i]))
 	#G_errors[i] = norm(abs.(G[i]), abs.(G′[0]))
 	println("G_errors[$i] = ", □(G_errors[i]))
 	#println("g'_errors[$i] = ", □(g′_errors[i]))
 	H_errors[i] = f_mse(abs.(H[i]), abs.(H′[0]))
+	#H_errors[i] = f_mse(H[i], H′[0])
+	#H_errors[i] = f_mse(H′[i], H′[i - 1])
 	#H_errors[i] = f_mse(abs.(H[i]), abs.(H′[i]))
 	#H_errors[i] = norm(abs.(H[i]), abs.(H′[0]))
 	println("H_errors[$i] = ", □(H_errors[i]))
@@ -112,6 +150,7 @@ for i in 1:total_cycles
 	#png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
 	#png(heatmap(angle.(G′[i]), title="Φ(G′)"), "out/$(file_name)--phases-G'$i.png")
 	#png(heatmap(angle.(half_roll(g′[i])), title="Φ(g′)"), "out/$(file_name)--phases-gg'$(i).png")
+	#png(heatmap(angle.(half_roll(h[i])), title="Φ(h)"), "out/$(file_name)--phases-hh$(i).png")
 
 	#png(heatmap(abs.(G[i]), title="|G|"), "out/$(file_name)--moduli-G$i.png")
 	#png(heatmap(abs.(half_roll(g[i])), title="|g|"), "out/$(file_name)--moduli-gg$(i).png")
@@ -128,11 +167,38 @@ g′★ = g′[total_cycles] # \bigstar
 g★ = g[total_cycles] # \bigstar
 G′★ = G′[total_cycles] # \bigstar
 G★ = G[total_cycles] # \bigstar
+h′★ = h′[total_cycles] # \bigstar
+h★ = h[total_cycles] # \bigstar
+H′★ = H′[total_cycles] # \bigstar
+H★ = H[total_cycles] # \bigstar
 
 save("out/$file_name--moduli-gg-final.png", half_roll(cap(abs.(g★))))
 save("out/$file_name--moduli-gg'-final.png", half_roll(cap(abs.(g′★))))
 save("out/$file_name--moduli-G-final.png", cap(abs.(F(g★))))
+save("out/$file_name--moduli-G-final-from-binary.png", cap(abs.(F(quantize2.(g★)))))
 save("out/$file_name--phases-gg-final.png", half_roll(cap(angle.(g★))))
+
+save("out/$file_name--moduli-hh-final.png", half_roll(cap(abs.(h★))))
+save("out/$file_name--moduli-hh'-final.png", half_roll(cap(abs.(h′★))))
+save("out/$file_name--moduli-H-final.png", cap(abs.(F(h★))))
+save("out/$file_name--phases-hh-final.png", half_roll(cap(angle.(h★))))
+
+phi_distr = histogram(vec(angle.(h★)),
+	label = L"h^\star",
+	seriescolor = :Black,  
+	legend = :topleft,
+	xlabel = "Angle (rads)",
+	ylabel = "Cells",
+	bins=50,
+	left_margin = 50 * Plots.PlotMeasures.px,
+	title = "Φ distribution",
+	)
+phi_distr = histogram!(phi_distr,
+	vec(angle.(g★)),
+	label = L"g^\star",
+	seriescolor = :gray,
+	)
+png(phi_distr, "out/$(file_name)--phases-star-distribution.png")
 
 #n = size(g′★)[1]
 #@show plancheral_G′ = sum(abs.(G′★).^2)
@@ -142,25 +208,40 @@ save("out/$file_name--phases-gg-final.png", half_roll(cap(angle.(g★))))
 garnet_color = RGB(((115, 0, 17) ./ 255)...)
 orangish_color = RGB(((245, 102, 0) ./ 255)...)
 
-#errors_max = max(maximum(G_errors), maximum(H_errors))
-#G_errors_step = (errors_max - minimum(G_errors)) / 10#length(G_errors)
-G_errors_step = (maximum(G_errors) - minimum(G_errors)) / 10#length(G_errors)
-errors_plot = plot(G_errors,
-				   label = "G",
-				   linecolor = false,
-				   fill = (0, garnet_color))
-errors_plot = plot!(errors_plot, H_errors,
-				   label = "H",
-				   linecolor = false, # turns off line color
-				   fill = (0, orangish_color))
+errors_max = max(maximum(G_errors), maximum(H_errors))
+errors_max = round(errors_max + 0.5)
+#errors_max = 170000
+errors_min = min(minimum(G_errors), minimum(H_errors))
+errors_min = round(errors_min - 0.5)
+#errors_min = 0
+@show errors_step = (errors_max - errors_min) / 10#length(G_errors)
+@show errors_max
+@show errors_min
+@show error_ticks = (errors_min:errors_step:errors_max)
+@show error_ticks = ■(6).(error_ticks)
+errors_plot = plot(H_errors,
+				   label = "Fienup",
+				   linecolor = :gray, # turns off line color: nothing?
+				   linestyle = :dash,
+				   #fill = (0, 1, :gray),
+				   )
+errors_plot = plot!(errors_plot, G_errors,
+				   label = "Gerchberg-Saxton",
+				   linecolor = :black,
+				   #fill = (0, 1, :darkgray),
+				   )
 errors_plot = plot!(errors_plot,
 					title = "Errors from Target Pattern",
 				 	aspect_ratio = :auto, # VERY IMPORTANT
+					#fillstyle = :/,
+					left_margin = 50 * Plots.PlotMeasures.px,
 				 	xlabel = "Cycle",
 				 	ylabel = "Mean Squared Error (MSE)",
 				 	xlims = (1, length(G_errors)),
-				 	ylims = (minimum(G_errors), maximum(G_errors)),
-				 	yticks = ■(3).(minimum(G_errors):G_errors_step:maximum(G_errors)),) 
+				 	#xticks = 1:1:length(G_errors),
+				    #ylims = (errors_min, errors_max),
+				 	#yticks = round.(error_ticks), #■(3).
+					) 
 png(errors_plot, "out/$file_name--errors.png")
 
 # filter off the high-frequency values. IMPORTANT: do not roll g′★[i] before doing this!
@@ -173,7 +254,7 @@ png(heatmap(abs.(g★_lows)), "out/$file_name--gg-star--low-freq-$lffs.png")
 #png(heatmap(I, title="I"), "out/$(file_name)--I.png")
 q = half_roll(g★) # basically q at least
 #g_illuminated = set_modulus(q, abs.(I) .* abs.(q))
-g_illuminated = set_modulus(q, abs.(I))
+g_illuminated = set_modulus(q, abs.(s))
 #g_illuminated = I .* (Φ	-> exp(1im * Φ)).(angle.(q))
 save("out/$file_name--gg-illuminated.png", cap(abs.(g_illuminated)))
 save("out/$file_name--G-illuminated.png", cap(abs.(F(g_illuminated))))
