@@ -94,4 +94,37 @@ export □
 ■(n = 3) = (x -> round(x, sigdigits = n))
 export ■
 
+"selects all elements not in the center of xx. radius is measured in taxicab distance, 
+eg radius = 5 will save only (2*5)^2 = 100 elements."
+function select_center(xx, radius::Integer)
+	yy = copy(xx)
+	δx_half = Integer(trunc(size(yy)[1] / 2))
+	δy_half = Integer(trunc(size(yy)[1] / 2))
+	x_range = (δx_half - radius):(δx_half + radius - 1)
+	y_range = (δy_half - radius):(δy_half + radius - 1)
+	@show x_range
+	@show y_range
+	return yy[x_range, y_range]
+end
+export select_center
+
+"zeros all elements not in the center of xx. radius is measured in taxicab distance, 
+eg radius = 5 will save only (2*5)^2 = 100 elements."
+function window_center(xx, radius)
+	yy = copy(xx)
+	δx = size(yy)[1]
+	δy = size(yy)[2]
+	δx_half = trunc(δx / 2)
+	δy_half = trunc(δy / 2)
+	for i in 1:δx
+		for j in 1:δx
+			if abs(i - δx_half) > radius || abs(j - δy_half) > radius
+				yy[i, j] = 0
+			end
+		end
+	end
+	return yy
+end
+export select_center
+
 end # MODULE END

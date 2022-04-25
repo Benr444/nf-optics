@@ -16,16 +16,16 @@ Revise.includet("ROptics.jl")
 using Main.ROptics
 
 #file_name = "three-200px"
-file_name = "uofsc-200px"
-#file_name = "cat-768px"
-illumination_file_name = "gaussian-200px"
-#illumination_file_name = "gaussian-768px"
+#file_name = "uofsc-200px"
+file_name = "cat-768px"
+#illumination_file_name = "gaussian-200px"
+illumination_file_name = "gaussian-768px"
 
 Plots.default(aspect_ratio = :auto, size = (1500, 1500), fontfamily = font("Computer Modern"))
 Plots.scalefontsizes() # reset font sizes
 Plots.scalefontsizes(3) # scale from base
 
-low_freq_filter_size = lffs = 150
+low_freq_filter_size = lffs = 80
 total_cycles = 5
 
 g, g′, G, G′ = Dict(), Dict(), Dict(), Dict() # prime marker is \prime
@@ -83,6 +83,7 @@ function Δg_d(z′, z)
 end
 
 quantize2(z) = angle(z) < 0 ? -1.0 + 0.0im : 1.0 + 0.0im
+quantize_2_mod(z) = abs(z) < 0 ? 0.0 + 1im : set_modulus(z, 1)
 function quantize4angle(z)
 	Φz = angle(z)
 	if Φz < -π/3
@@ -120,6 +121,10 @@ for i in 1:total_cycles
 	G′[i] = set_modulus(G[i], G′[0])
 	g′[i] = F⁻¹(G′[i])
 	
+	#h[i] = quantize_2_mod.(h′[i - 1])
+	#h[i] = set_phase(h[i], 0)
+	
+
 	#h[i] = set_modulus(h′[i - 1], h′[0])
 	h[i] = set_modulus(h′[i - 1], 1.0)
 	#h[i] = set_modulus(h′[i - 1], β) .+ (1 - β) .* h′[i - 1]
@@ -245,11 +250,17 @@ errors_plot = plot!(errors_plot,
 png(errors_plot, "out/$file_name--errors.png")
 
 # filter off the high-frequency values. IMPORTANT: do not roll g′★[i] before doing this!
-g★_lows = g★[1:lffs, 1:lffs]
+#g★_lows = g★[1:lffs, 1:lffs]
+half_lffs = Integer(trunc(lffs / 2))
+g★_lows = select_center(half_roll(g★), half_lffs)
+png(heatmap(angle.(g★[1:lffs, 1:lffs])), "out/b.png")
+png(heatmap(angle.(g★_lows)), "out/a.png")
+@show size(g★_lows)
 g★_filtered = vcat(hcat(g★_lows, zeros(lffs, pattern_size - lffs)), zeros(pattern_size - lffs, pattern_size))
 G★_filtered = F(g★_filtered)
-save("out/$file_name--G-star--low-freq-$lffs.png", cap(abs.(G★_filtered)))
-png(heatmap(abs.(g★_lows)), "out/$file_name--gg-star--low-freq-$lffs.png")
+save("out/$file_name--G-star-moduli--low-freq-$lffs.png", cap(abs.(G★_filtered)))
+save("out/$file_name--gg-star-phases--low-freq-$lffs.png", cap(angle.(g★_lows)))
+#png(heatmap(abs.(g★_lows)), "out/$file_name--gg-star--low-freq-$lffs.png")
 
 #png(heatmap(I, title="I"), "out/$(file_name)--I.png")
 q = half_roll(g★) # basically q at least
