@@ -15,18 +15,25 @@ using Plots; gr()
 Revise.includet("ROptics.jl")
 using Main.ROptics
 
+# selecting input files: image and illumination."
+# the main input file is `file_name`. new inputs can be added to the `in/` folder and pulled from here.
+
 #file_name = "three-200px"
 #file_name = "uofsc-200px"
 file_name = "cat-768px"
 #illumination_file_name = "gaussian-200px"
 illumination_file_name = "gaussian-768px"
 
+# set default plotting options.
+
 Plots.default(aspect_ratio = :auto, size = (1500, 1500), fontfamily = font("Computer Modern"))
 Plots.scalefontsizes() # reset font sizes
 Plots.scalefontsizes(3) # scale from base
 
+# two constants used in controlling outputs.
+
 low_freq_filter_size = lffs = 80
-total_cycles = 5
+total_cycles = 10
 
 g, g′, G, G′ = Dict(), Dict(), Dict(), Dict() # prime marker is \prime
 # g = relief guess.
@@ -34,46 +41,52 @@ g, g′, G, G′ = Dict(), Dict(), Dict(), Dict() # prime marker is \prime
 # G = far-field pattern.
 # G′ = moduli-corrected pattern (same moduli as given initial pattern).
 
+h, h′, H, H′ = Dict(), Dict(), Dict(), Dict()
+# binary-level data, same conventions as for g-series.
+
 G′[0] = Complex{Float64}.(make_field("in/$(file_name).png")) # read in pattern. cast to Complex64 type.
 pattern_size = size(G′[0])[1]
 
-px_scale = 1 # units: micrometers. distance across one pixel edge.
+# currently-unused functions for calculating real-unit scales of outputs.
+
+#px_scale = 1 # units: micrometers. distance across one pixel edge.
 # pos of cell 1 -> 0 (initial term)
 # pos of cell 2 -> 1 * px_scale
 # pos of cell i -> (i-1) * px_scale 
 # freq of cell 1 -> 0 (constant term)
 # freq of cell 2 -> 1 cycle per set, eg (length(G) * px_scale)^-1
 # freq of cell i -> i-1 cycles per set
-pattern_length = (pattern_size) * px_scale
-pattern_base_tone = (pattern_size * px_scale)^-1
-phys_pos(i) = (i - 1) * px_scale 
-phys_pos(i, j) = sqrt(phys_pos(i)^2 + phys_pos(j)^2)
-phys_freq(i) = (i - 1) * (pattern_base_tone)
-phys_freq(i, j) = sqrt(phys_freq(i)^2 + phys_freq(j)^2)
-
-h, h′, H, H′ = Dict(), Dict(), Dict(), Dict()
-# binary-level data
+#pattern_length = (pattern_size) * px_scale
+#pattern_base_tone = (pattern_size * px_scale)^-1
+#phys_pos(i) = (i - 1) * px_scale 
+#phys_pos(i, j) = sqrt(phys_pos(i)^2 + phys_pos(j)^2)
+#phys_freq(i) = (i - 1) * (pattern_base_tone)
+#phys_freq(i, j) = sqrt(phys_freq(i)^2 + phys_freq(j)^2)
 
 G_errors = zeros(total_cycles)
-# ^ stores diffs from the target G[0]. there is 1 such diff for each cycle (0 is not graphed).
 g′_errors = zeros(total_cycles)
 H_errors = zeros(total_cycles)
+# ^ stores diffs from the target. there is 1 such diff for each cycle (0 is not graphed).
 
 s = ComplexF64.(make_field("in/$illumination_file_name.png"))
+# read in illumination source image.
 #save("out/$file_name--s.png", cap(abs.(s)))
 
-
+g′[0] = F⁻¹(G′[0])# create relief guess by reverse-propagating pattern.
 random_phases = (rand(Float64, size(G′[0])) .- 0.5) .* 2π
 # ^ generate random phases. start with r ∈ (0 to 1]. then rescale to fit in (-π to π].
-g′[0] = F⁻¹(G′[0])# create relief guess by reverse-propagating pattern.
-g′[0] = set_phase(g′[0], random_phases)
+g′[0] = set_phase(g′[0], random_phases) # fill with random phases.
 g[0] = set_modulus(g′[0], 1) # force-satisfy constraints for first object guess.
+
+# h-series is initialized to be copies of g-series.
 
 H′[0] = copy(G′[0])
 h′[0] = copy(g′[0])
 h[0] = copy(g[0])
 
-β = 0.9
+β = 0.9 # constant used for controlling rate of descent in Fienup's algorithm.
+
+"used in Fienup's algorithm, see explanatory-paper."
 function Δg_d(z′, z)
 	if abs(z′) == 1.0
 		return 0
@@ -82,8 +95,13 @@ function Δg_d(z′, z)
 	end
 end
 
+"quantizes the given complex number to have modulus 1 and a phase of -π or π"
 quantize2(z) = angle(z) < 0 ? -1.0 + 0.0im : 1.0 + 0.0im
+
+"quantizes only the modulus."
 quantize_2_mod(z) = abs(z) < 0 ? 0.0 + 1im : set_modulus(z, 1)
+
+"alt definition of quantize4" 
 function quantize4angle(z)
 	Φz = angle(z)
 	if Φz < -π/3
@@ -96,6 +114,8 @@ function quantize4angle(z)
 		set_phase(z, π/3)
 	end
 end
+
+"quantizes the phase to be one of 4 values in the range [-π to π)." 
 function quantize4(z)
 	Φz = angle(z)
 	if Φz < -π/3
@@ -108,22 +128,27 @@ function quantize4(z)
 		set_phase(1im, π/3)
 	end
 end
+
+# main program iteration loop.
 for i in 1:total_cycles
+	# the following g′ ⟶ g correction methods are not all used; only one is used for a particular time.
+	# you can control which is used by commenting them out.
+
 	#g[i] = set_modulus(g′[i - 1], g′[0])
 	#g[i] = set_modulus(g′[i - 1], mean(g′[i - 1]))
-	g[i] = set_modulus(g′[i - 1], 1) # <----- this is really the one i swear. eq 24 in Fienup 1984 reduces to this if β = 1.
+	g[i] = set_modulus(g′[i - 1], 1)
 	#g[i] = set_modulus(g′[i - 1], abs.(s))
-	#g[i] = set_modulus(g′[i - 1], β) .+ (1 - β) .* g′[i - 1]
-	# this and the one below are algebraically equivalent (if i havent fucked with Δg_d since writing this comment).
+
+	#g[i] = set_modulus(g′[i - 1], β) .+ (1 - β) .* g′[i - 1] # this and the one below are algebraically equivalent.
 	#g[i] = g′[i - 1] .+ (β .* Δg_d.(g′[i - 1], g[i - 1]))
 
 	G[i] = F(g[i])
 	G′[i] = set_modulus(G[i], G′[0])
 	g′[i] = F⁻¹(G′[i])
 	
+	# quantization step for h. may be disabled if another comparison is desired.
 	#h[i] = quantize_2_mod.(h′[i - 1])
 	#h[i] = set_phase(h[i], 0)
-	
 
 	#h[i] = set_modulus(h′[i - 1], h′[0])
 	h[i] = set_modulus(h′[i - 1], 1.0)
@@ -134,6 +159,9 @@ for i in 1:total_cycles
 	H[i] = F(h[i])
 	H′[i] = set_modulus(H[i], H′[0]) # set the modulus of the current guess to be that of the target
 	h′[i] = F⁻¹(H′[i])
+
+	# multiple measures of errors can be picked for G and H.
+	# only one is to be uncommented at a time.
 
 	G_errors[i] = f_mse(abs.(G[i]), abs.(G′[0]))
 	#G_errors[i] = f_mse(G[i], G′[0])
@@ -149,6 +177,9 @@ for i in 1:total_cycles
 	#H_errors[i] = f_mse(abs.(H[i]), abs.(H′[i]))
 	#H_errors[i] = norm(abs.(H[i]), abs.(H′[0]))
 	println("H_errors[$i] = ", □(H_errors[i]))
+
+	# cycle-by-cycle visualizations of the g, G fields.
+	# keep these commented out normally or the code will run very slowly.
 
 	#png(heatmap(abs.(G′[i]), title="|G′|"), "out/$(file_name)--moduli-G'$i.png")
 	#png(heatmap(abs.(half_roll(g′[i])), title="|g′|"), "out/$(file_name)--moduli-gg'$(i).png")
@@ -167,6 +198,8 @@ for i in 1:total_cycles
 	#save("out/$(file_name)--phases-gg$(i)-matrix.png", cap(angle.(half_roll(g[i]))))
 	println("Cycle $i finished.")
 end
+
+# nickname final iteration/cycle versions for abbrevation.
 
 g′★ = g′[total_cycles] # \bigstar
 g★ = g[total_cycles] # \bigstar
@@ -188,6 +221,8 @@ save("out/$file_name--moduli-hh'-final.png", half_roll(cap(abs.(h′★))))
 save("out/$file_name--moduli-H-final.png", cap(abs.(F(h★))))
 save("out/$file_name--phases-hh-final.png", half_roll(cap(angle.(h★))))
 
+# create histograms for the distribution of phases.
+
 phi_distr = histogram(vec(angle.(h★)),
 	label = L"h^\star",
 	seriescolor = :Black,  
@@ -205,10 +240,14 @@ phi_distr = histogram!(phi_distr,
 	)
 png(phi_distr, "out/$(file_name)--phases-star-distribution.png")
 
+# planceral's theorem sanity check
+
 #n = size(g′★)[1]
 #@show plancheral_G′ = sum(abs.(G′★).^2)
 #@show plancheral_g′ = sum(abs.(g′★).^2)
 #@show (n^2) * plancheral_g′ - plancheral_G′
+
+# memoized color codes for graphing outputs (unused).
 
 garnet_color = RGB(((115, 0, 17) ./ 255)...)
 orangish_color = RGB(((245, 102, 0) ./ 255)...)
@@ -224,6 +263,9 @@ errors_min = round(errors_min - 0.5)
 @show errors_min
 @show error_ticks = (errors_min:errors_step:errors_max)
 @show error_ticks = ■(6).(error_ticks)
+
+# plot of errors versus cycle. may appear incorrectly if the error converges too quickly.
+
 errors_plot = plot(H_errors,
 				   label = "Fienup",
 				   linecolor = :gray, # turns off line color: nothing?
@@ -249,18 +291,25 @@ errors_plot = plot!(errors_plot,
 					) 
 png(errors_plot, "out/$file_name--errors.png")
 
+# creation of low-frequency filtered outputs.
+
 # filter off the high-frequency values. IMPORTANT: do not roll g′★[i] before doing this!
 #g★_lows = g★[1:lffs, 1:lffs]
 half_lffs = Integer(trunc(lffs / 2))
 g★_lows = select_center(half_roll(g★), half_lffs)
-png(heatmap(angle.(g★[1:lffs, 1:lffs])), "out/b.png")
-png(heatmap(angle.(g★_lows)), "out/a.png")
-@show size(g★_lows)
+#png(heatmap(angle.(g★[1:lffs, 1:lffs])), "out/b.png")
+#png(heatmap(angle.(g★_lows)), "out/a.png")
+
+# g★_filtered takes the smaller filtered matrix and forces it to match the original scale by filling in the rest of the
+# space with empty matrix `zeros`.
+
 g★_filtered = vcat(hcat(g★_lows, zeros(lffs, pattern_size - lffs)), zeros(pattern_size - lffs, pattern_size))
 G★_filtered = F(g★_filtered)
 save("out/$file_name--G-star-moduli--low-freq-$lffs.png", cap(abs.(G★_filtered)))
 save("out/$file_name--gg-star-phases--low-freq-$lffs.png", cap(angle.(g★_lows)))
 #png(heatmap(abs.(g★_lows)), "out/$file_name--gg-star--low-freq-$lffs.png")
+
+# illumination graphs outputs.
 
 #png(heatmap(I, title="I"), "out/$(file_name)--I.png")
 q = half_roll(g★) # basically q at least

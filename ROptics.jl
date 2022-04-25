@@ -3,41 +3,52 @@ using Revise
 using Images, FileIO, Plots, FFTW
 import Base.real
 
+"loads an image file into a matrix of floating-point values."
 function make_field(filename)
 	image = load(filename)
 	return gray_modulus.(image)
 end
 export make_field
 
+"Fourier-transforms the given matrix." 
 F(x::Matrix{Complex{Float64}}) = fft(x) # forward-propagate
 #F(x::Matrix{<: Real}) = F(Complex{Float64}.(x))
 export F
+
+"Inverse-Fourier-transforms the given matrix." 
 F⁻¹(x::Matrix{Complex{Float64}}) = ifft(x) # reverse-propagate
 #F⁻¹(x::Matrix{<: Real}) = F⁻¹(Complex{Float64}.(x))
 export F⁻¹
 
-Plots.png(x::Matrix{Complex{Float64}}, filepath) = png(plot(Gray24.(fit_my_range(real(x)))), filepath)
+"Simplifies the syntax of saving a complex-matrix to file. uses moduli." 
+Plots.png(x::Matrix{Complex{Float64}}, filepath) = png(plot(Gray24.(fit_my_range(abs.(x)))), filepath)
 # ^ method extension to plot
 #export png
 
+"sets the phase of the given complex number z to the given radian-angle Φ."
 set_phase(z, Φ) = abs(z) * exp(1im * Φ)
 set_phase(zz::Matrix{Complex{Float64}}, Φs) = broadcast(set_phase, zz, Φs)
 export set_phase
+
+"sets the modulus of the given complex number z to the given modulus r."
 set_modulus(z, r) = abs(r) * exp(1im * angle(z))
 set_modulus(zz::Matrix{Complex{Float64}}, rs) = broadcast(set_modulus, zz, rs)
 export set_modulus
 
+"converts an image RGB-like value into a float. used in parsing image files."
 gray_modulus(c::AbstractRGB) = Float64(Gray(c))
 gray_modulus(c::AbstractRGBA) = Float64(Gray(c))
 gray_modulus(gc::Gray) = Float64(gc)
 export gray_modulus
+
+"deprecated."
 function gray_modulus_old(c::AbstractRGBA)
 	colors = (red(c), green(c), blue(c))
 	(sqrt ∘ sum)((colors.^2))
 end
 export gray_modulus_old
 
-# roll any array so its first position becomes 'centered'
+"#roll the given array so its first position becomes 'centered'."
 function half_roll(xx::AbstractArray)
 	circshift(xx, size(xx).÷2)
 end
